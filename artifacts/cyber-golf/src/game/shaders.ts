@@ -97,7 +97,6 @@ void main() {
 export const phongFragmentShader = `
 uniform vec3 baseColor;
 uniform float emissiveStrength;
-uniform vec3 cameraPosition;
 
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;

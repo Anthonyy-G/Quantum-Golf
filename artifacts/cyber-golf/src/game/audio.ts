@@ -1,143 +1,256 @@
-// Generador de música ambiental cyberpunk usando Web Audio API
-// No necesita archivos externos - todo se genera en tiempo real
+// Música cyberpunk generativa con Web Audio API
+// Bajo + melodía + acordes + batería + reverb + delay
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let reverbNode: ConvolverNode | null = null;
+let delayNode: DelayNode | null = null;
 let isPlaying = false;
-let stopCallbacks: Array<() => void> = [];
+let loopTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function getCtx(): AudioContext {
   if (!ctx) ctx = new AudioContext();
   return ctx;
 }
 
-function playNote(
-  frequency: number,
-  startTime: number,
-  duration: number,
-  gain: number,
-  type: OscillatorType = 'sawtooth',
-  filterFreq = 800
+// Reverb sintético con impulse response
+function createReverb(ac: AudioContext, seconds = 2.0, decay = 2.0): ConvolverNode {
+  const conv = ac.createConvolver();
+  const rate = ac.sampleRate;
+  const len = rate * seconds;
+  const buf = ac.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  conv.buffer = buf;
+  return conv;
+}
+
+// Delay tipo eco
+function createDelay(ac: AudioContext, time = 0.375, feedback = 0.3): DelayNode {
+  const delay = ac.createDelay(2.0);
+  delay.delayTime.value = time;
+  const fb = ac.createGain();
+  fb.gain.value = feedback;
+  delay.connect(fb);
+  fb.connect(delay);
+  return delay;
+}
+
+function connectToOutput(node: AudioNode, wet = 0.3) {
+  const ac = getCtx();
+  // Dry
+  node.connect(masterGain!);
+  // Reverb
+  if (reverbNode) {
+    const reverbGain = ac.createGain();
+    reverbGain.gain.value = wet;
+    node.connect(reverbGain);
+    reverbGain.connect(reverbNode);
+  }
+  // Delay
+  if (delayNode) {
+    const delayGain = ac.createGain();
+    delayGain.gain.value = wet * 0.5;
+    node.connect(delayGain);
+    delayGain.connect(delayNode);
+  }
+}
+
+function note(
+  freq: number, start: number, dur: number,
+  vol: number, type: OscillatorType = 'sawtooth',
+  cutoff = 1200, resonance = 1.5,
+  filterEnvAmt = 0, wetness = 0.25
 ) {
   const ac = getCtx();
   const osc = ac.createOscillator();
+  const osc2 = ac.createOscillator(); // detuned unison
   const gainNode = ac.createGain();
   const filter = ac.createBiquadFilter();
 
   filter.type = 'lowpass';
-  filter.frequency.value = filterFreq;
-  filter.Q.value = 2.0;
+  filter.frequency.setValueAtTime(cutoff, start);
+  filter.frequency.linearRampToValueAtTime(cutoff + filterEnvAmt, start + 0.02);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(100, cutoff * 0.4), start + dur * 0.8);
+  filter.Q.value = resonance;
 
   osc.type = type;
-  osc.frequency.setValueAtTime(frequency, startTime);
+  osc.frequency.setValueAtTime(freq, start);
+  osc2.type = type;
+  osc2.frequency.setValueAtTime(freq * 1.003, start); // slight detune for chorus
 
-  gainNode.gain.setValueAtTime(0, startTime);
-  gainNode.gain.linearRampToValueAtTime(gain, startTime + 0.05);
-  gainNode.gain.setValueAtTime(gain, startTime + duration - 0.05);
-  gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+  gainNode.gain.setValueAtTime(0.001, start);
+  gainNode.gain.linearRampToValueAtTime(vol, start + 0.01);
+  gainNode.gain.setValueAtTime(vol, start + dur - 0.06);
+  gainNode.gain.linearRampToValueAtTime(0.001, start + dur);
 
   osc.connect(filter);
+  osc2.connect(filter);
   filter.connect(gainNode);
-  gainNode.connect(masterGain!);
+  connectToOutput(gainNode, wetness);
 
-  osc.start(startTime);
-  osc.stop(startTime + duration);
+  osc.start(start); osc.stop(start + dur + 0.05);
+  osc2.start(start); osc2.stop(start + dur + 0.05);
 }
 
-function playDrum(frequency: number, startTime: number, gainVal: number, duration = 0.15) {
+function kick(t: number, vol = 0.8) {
   const ac = getCtx();
   const osc = ac.createOscillator();
-  const gainNode = ac.createGain();
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(frequency, startTime);
-  osc.frequency.exponentialRampToValueAtTime(frequency * 0.3, startTime + duration);
-
-  gainNode.gain.setValueAtTime(gainVal, startTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-  osc.connect(gainNode);
-  gainNode.connect(masterGain!);
-
-  osc.start(startTime);
-  osc.stop(startTime + duration + 0.01);
+  const gain = ac.createGain();
+  osc.frequency.setValueAtTime(120, t);
+  osc.frequency.exponentialRampToValueAtTime(45, t + 0.15);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  osc.connect(gain); gain.connect(masterGain!);
+  osc.start(t); osc.stop(t + 0.3);
 }
 
-function playNoise(startTime: number, gainVal: number, duration = 0.05) {
+function snare(t: number, vol = 0.4) {
   const ac = getCtx();
-  const bufferSize = ac.sampleRate * duration;
-  const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  // Tonal body
+  const osc = ac.createOscillator();
+  const oscGain = ac.createGain();
+  osc.frequency.setValueAtTime(220, t);
+  osc.frequency.exponentialRampToValueAtTime(160, t + 0.05);
+  oscGain.gain.setValueAtTime(vol * 0.5, t);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+  osc.connect(oscGain); oscGain.connect(masterGain!);
+  osc.start(t); osc.stop(t + 0.1);
 
-  const source = ac.createBufferSource();
-  source.buffer = buffer;
-
+  // Noise snap
+  const bufSize = ac.sampleRate * 0.12;
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
   const filter = ac.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.value = 4000;
-
-  const gainNode = ac.createGain();
-  gainNode.gain.setValueAtTime(gainVal, startTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
-  source.connect(filter);
-  filter.connect(gainNode);
-  gainNode.connect(masterGain!);
-
-  source.start(startTime);
-  source.stop(startTime + duration + 0.01);
+  filter.type = 'bandpass'; filter.frequency.value = 3500; filter.Q.value = 0.8;
+  const nGain = ac.createGain();
+  nGain.gain.setValueAtTime(vol, t);
+  nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  src.connect(filter); filter.connect(nGain); nGain.connect(masterGain!);
+  src.start(t); src.stop(t + 0.15);
 }
 
-// Secuencia de notas (escala menor de Do)
-const BASS_NOTES = [65.41, 73.42, 82.41, 87.31, 98.00, 82.41, 73.42, 65.41];
-const PAD_NOTES  = [130.81, 155.56, 196.00, 174.61];
-
-function scheduleLoop(startTime: number, bpm = 120): number {
+function hihat(t: number, vol = 0.15, open = false) {
   const ac = getCtx();
-  const beat = 60 / bpm;
-  const bar = beat * 4;
-  const loopEnd = startTime + bar * 2; // 2 compases por loop
+  const dur = open ? 0.3 : 0.06;
+  const bufSize = ac.sampleRate * dur;
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'highpass'; filter.frequency.value = 8000;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(filter); filter.connect(g); g.connect(masterGain!);
+  src.start(t); src.stop(t + dur + 0.01);
+}
 
-  // --- BAJO PULSANTE ---
-  BASS_NOTES.forEach((freq, i) => {
-    playNote(freq, startTime + i * beat * 0.5, beat * 0.4, 0.25, 'sawtooth', 300);
-  });
+// Escala menor: A2=110 -> A3=220
+const BASS_ROOT = 55; // A1
+// Progresión: i - VI - III - VII  (Am - F - C - G en A menor)
+const BASS_PROG = [
+  [55, 55, 55, 55, 82.41, 82.41, 73.42, 73.42],    // i  (A)
+  [43.65, 43.65, 65.41, 65.41, 65.41, 65.41, 55, 55], // VI (F)
+  [32.70, 32.70, 65.41, 65.41, 82.41, 82.41, 65.41, 65.41], // III (C)
+  [48.99, 48.99, 73.42, 73.42, 73.42, 73.42, 65.41, 65.41], // VII (G)
+];
 
-  // --- PAD AMBIENTE ---
-  PAD_NOTES.forEach((freq, i) => {
-    playNote(freq, startTime + i * bar * 0.25, bar * 0.3, 0.08, 'sine', 600);
-    playNote(freq * 1.5, startTime + i * bar * 0.25, bar * 0.3, 0.05, 'triangle', 800);
-  });
+// Arpeggio melódico (octava más alta)
+const MELODY = [
+  [440, 0, 523.25, 0, 587.33, 0, 659.26, 0, 587.33, 0, 523.25, 0, 440, 0, 392, 0],
+  [349.23, 0, 392, 0, 440, 0, 523.25, 0, 440, 0, 392, 0, 349.23, 0, 330, 0],
+  [261.63, 0, 329.63, 0, 392, 0, 440, 0, 523.25, 0, 440, 0, 392, 0, 329.63, 0],
+  [293.66, 0, 349.23, 0, 392, 0, 440, 0, 392, 0, 349.23, 0, 329.63, 0, 293.66, 0],
+];
+
+const BPM = 120;
+const BEAT = 60 / BPM;
+const BAR = BEAT * 4;
+
+function scheduleBar(startTime: number, barIndex: number) {
+  const progIdx = barIndex % 4;
+  const bassNotes = BASS_PROG[progIdx];
+  const melNotes = MELODY[progIdx];
+
+  // --- BAJO (sawtooth, filtro bajo, resonante) ---
+  for (let i = 0; i < 8; i++) {
+    const t = startTime + i * BEAT * 0.5;
+    const freq = bassNotes[i];
+    if (freq > 0) {
+      note(freq, t, BEAT * 0.45, 0.28, 'sawtooth', 400, 3.0, 600, 0.08);
+    }
+  }
+
+  // --- ACORDES (pad atmosférico, octava media) ---
+  const chordFreqs = [
+    [220, 261.63, 329.63],   // Am
+    [174.61, 220, 261.63],   // F
+    [130.81, 164.81, 196],   // C
+    [196, 246.94, 293.66],   // G
+  ][progIdx];
+
+  for (const f of chordFreqs) {
+    note(f, startTime, BAR * 0.95, 0.055, 'triangle', 900, 1.0, 200, 0.6);
+  }
+
+  // --- MELODÍA (arpeggio synth) - solo en bares 2,3,4 de cada 4 ---
+  if (barIndex % 4 !== 0) {
+    for (let i = 0; i < 16; i++) {
+      const t = startTime + i * BEAT * 0.25;
+      const f = melNotes[i];
+      if (f > 0) {
+        note(f, t, BEAT * 0.22, 0.12, 'square', 2200, 2.0, 1200, 0.45);
+      }
+    }
+  }
 
   // --- BATERÍA ---
   for (let b = 0; b < 8; b++) {
-    const t = startTime + b * beat * 0.5;
-    // Kick en tiempos 1 y 3
-    if (b % 4 === 0) playDrum(80, t, 0.5, 0.3);
-    // Snare en tiempos 2 y 4
-    if (b % 4 === 2) {
-      playDrum(200, t, 0.3, 0.08);
-      playNoise(t, 0.25, 0.12);
+    const t = startTime + b * BEAT * 0.5;
+    // Kick: beats 1 y 3, y variación en beat 4.75
+    if (b === 0 || b === 4) kick(t, 0.85);
+    if (b === 7 && barIndex % 2 === 1) kick(t + BEAT * 0.375, 0.5); // ghost kick
+
+    // Snare: beats 2 y 4
+    if (b === 2 || b === 6) snare(t, 0.45);
+
+    // Hi-hat cerrado cada corchea
+    hihat(t, 0.18);
+    // Hi-hat semi-abierto en contratiempos del compás 4 del bloque
+    if (barIndex % 4 === 3 && (b === 1 || b === 3 || b === 5)) {
+      hihat(t, 0.12, true);
     }
-    // Hi-hat cada corchea
-    playNoise(t, 0.06, 0.03);
   }
-
-  // Acento final de hi-hat
-  playNoise(startTime + beat * 3.75, 0.1, 0.04);
-
-  return loopEnd;
+  // hi-hat en semicorcheas para el último compás de cada bloque
+  if (barIndex % 4 === 3) {
+    for (let s = 0; s < 16; s++) {
+      hihat(startTime + s * BEAT * 0.25, 0.07);
+    }
+  }
 }
 
-let loopTimeout: ReturnType<typeof setTimeout> | null = null;
+let currentBar = 0;
 
 function runLoop() {
   if (!isPlaying || !ctx || !masterGain) return;
   const now = ctx.currentTime;
-  const nextLoopEnd = scheduleLoop(now + 0.05, 118);
-  const delay = (nextLoopEnd - now - 0.1) * 1000;
-  loopTimeout = setTimeout(runLoop, Math.max(100, delay));
+  // Schedule 2 bars at a time to avoid gaps
+  scheduleBar(now + 0.1, currentBar);
+  scheduleBar(now + 0.1 + BAR, currentBar + 1);
+  currentBar += 2;
+
+  const nextSchedule = BAR * 2 - 0.15;
+  loopTimeout = setTimeout(runLoop, nextSchedule * 1000);
 }
 
 export function startMusic(): void {
@@ -146,11 +259,35 @@ export function startMusic(): void {
 
   masterGain = ac.createGain();
   masterGain.gain.value = 0;
-  masterGain.connect(ac.destination);
 
-  // Fade in
-  masterGain.gain.linearRampToValueAtTime(0.6, ac.currentTime + 1.5);
+  // Reverb
+  reverbNode = createReverb(ac, 2.5, 2.5);
+  const reverbGain = ac.createGain();
+  reverbGain.gain.value = 0.22;
+  reverbNode.connect(reverbGain);
+  reverbGain.connect(masterGain);
 
+  // Delay
+  delayNode = createDelay(ac, 60 / BPM * 0.75, 0.28);
+  const delayOutGain = ac.createGain();
+  delayOutGain.gain.value = 0.15;
+  delayNode.connect(delayOutGain);
+  delayOutGain.connect(masterGain);
+
+  // Compresor suave para que todo quede en rango
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.knee.value = 10;
+  comp.ratio.value = 4;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.25;
+  masterGain.connect(comp);
+  comp.connect(ac.destination);
+
+  // Fade in suave
+  masterGain.gain.linearRampToValueAtTime(0.55, ac.currentTime + 2.0);
+
+  currentBar = 0;
   isPlaying = true;
   runLoop();
 }
@@ -158,24 +295,13 @@ export function startMusic(): void {
 export function stopMusic(): void {
   if (!isPlaying || !masterGain || !ctx) return;
   isPlaying = false;
-
-  if (loopTimeout) {
-    clearTimeout(loopTimeout);
-    loopTimeout = null;
-  }
-
-  // Fade out
-  masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.0);
+  if (loopTimeout) { clearTimeout(loopTimeout); loopTimeout = null; }
+  masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
 }
 
 export function toggleMusic(): boolean {
-  if (isPlaying) {
-    stopMusic();
-    return false;
-  } else {
-    startMusic();
-    return true;
-  }
+  if (isPlaying) { stopMusic(); return false; }
+  startMusic(); return true;
 }
 
 export function isMusicPlaying(): boolean {
