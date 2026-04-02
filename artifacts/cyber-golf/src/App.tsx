@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GameScene } from './components/GameScene';
 import { LEVELS } from './game/levels';
 import { GameState, Player, BallState, PLAYER_COLORS, PLAYER_COLOR_NAMES, ShadingMode } from './game/types';
+import { startMusic, stopMusic, toggleMusic, isMusicPlaying } from './game/audio';
 
 const TOTAL_HOLES = LEVELS.length;
 
@@ -35,6 +36,12 @@ function initBalls(players: Player[], teePos: [number, number, number]): BallSta
 function StartScreen({ onStart }: { onStart: (playerCount: number, shading: ShadingMode) => void }) {
   const [count, setCount] = useState(2);
   const [shading, setShading] = useState<ShadingMode>('phong');
+  const [musicOn, setMusicOn] = useState(false);
+
+  const handleToggleMusic = () => {
+    const nowPlaying = toggleMusic();
+    setMusicOn(nowPlaying);
+  };
 
   return (
     <div className="overlay">
@@ -66,6 +73,15 @@ function StartScreen({ onStart }: { onStart: (playerCount: number, shading: Shad
             </button>
           </div>
         </div>
+
+        {/* Music toggle */}
+        <button
+          className={`shading-btn ${musicOn ? 'active' : ''}`}
+          onClick={handleToggleMusic}
+          style={{ letterSpacing: 2, padding: '10px 24px' }}
+        >
+          {musicOn ? '♪ MÚSICA ON' : '♪ MÚSICA OFF'}
+        </button>
       </div>
 
       <button className="btn" onClick={() => onStart(count, shading)}>
@@ -73,7 +89,7 @@ function StartScreen({ onStart }: { onStart: (playerCount: number, shading: Shad
       </button>
 
       <div style={{ marginTop: 32, fontSize: 10, letterSpacing: 2, color: 'rgba(255,255,255,0.3)', textAlign: 'center', maxWidth: 320 }}>
-        CONTROLES: CLICK Y ARRASTRA para apuntar · BARRA ESPACIADORA para disparar · RUEDA para ajustar potencia
+        CONTROLES: FLECHAS ← → para apuntar · ESPACIO para disparar · FLECHAS ↑ ↓ para potencia
       </div>
     </div>
   );
@@ -128,7 +144,7 @@ function HUD({
   players, currentHole, activeBallIdx, shadingMode,
   aimAngle, setAimAngle, aimPower, setAimPower,
   onShoot, onRotateLevel, levelRotation, allBallsStopped,
-  showRotateHint,
+  showRotateHint, musicOn, onToggleMusic,
 }: {
   players: Player[];
   currentHole: number;
@@ -143,6 +159,8 @@ function HUD({
   levelRotation: number;
   allBallsStopped: boolean;
   showRotateHint: boolean;
+  musicOn: boolean;
+  onToggleMusic: () => void;
 }) {
   const level = LEVELS[currentHole];
   const activePlayer = players[activeBallIdx];
@@ -233,6 +251,32 @@ function HUD({
       <button className="rotate-btn" onClick={onRotateLevel} title="Rotar nivel 90°">
         ROTAR<br />NIVEL<br />↻
       </button>
+
+      {/* Music toggle */}
+      <button
+        onClick={onToggleMusic}
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 20,
+          zIndex: 10,
+          background: 'rgba(5,5,30,0.85)',
+          border: `1px solid ${musicOn ? 'rgba(57,255,20,0.5)' : 'rgba(255,255,255,0.2)'}`,
+          color: musicOn ? '#39ff14' : 'rgba(255,255,255,0.4)',
+          fontFamily: "'Courier New', monospace",
+          fontSize: 10,
+          letterSpacing: 2,
+          textTransform: 'uppercase' as const,
+          padding: '8px 12px',
+          cursor: 'pointer',
+          backdropFilter: 'blur(8px)',
+          textShadow: musicOn ? '0 0 8px #39ff14' : 'none',
+          transition: 'all 0.2s',
+        }}
+        title="Encender/apagar música"
+      >
+        {musicOn ? '♪ ON' : '♪ OFF'}
+      </button>
     </>
   );
 }
@@ -250,6 +294,20 @@ export default function App() {
   const [levelRotation, setLevelRotation] = useState(0);
   const [rotationText, setRotationText] = useState<string | null>(null);
   const [isAiming, setIsAiming] = useState(true);
+  const [musicOn, setMusicOn] = useState(false);
+
+  const handleToggleMusic = useCallback(() => {
+    const nowPlaying = toggleMusic();
+    setMusicOn(nowPlaying);
+  }, []);
+
+  // Stop music when returning to menu
+  useEffect(() => {
+    if (gameState === 'menu' && musicOn) {
+      stopMusic();
+      setMusicOn(false);
+    }
+  }, [gameState]);
 
   const level = LEVELS[currentHole];
 
@@ -407,6 +465,8 @@ export default function App() {
         levelRotation={levelRotation}
         allBallsStopped={allBallsStopped}
         showRotateHint={false}
+        musicOn={musicOn}
+        onToggleMusic={handleToggleMusic}
       />
 
       {rotationText && (
