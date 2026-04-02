@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GameScene } from './components/GameScene';
 import { LEVELS } from './game/levels';
 import { GameState, Player, BallState, PLAYER_COLORS, PLAYER_COLOR_NAMES, ShadingMode } from './game/types';
-import { startMusic, stopMusic, toggleMusic, isMusicPlaying } from './game/audio';
+import { startMusicForLevel, stopMusic, isMusicPlaying } from './game/audio';
 
 const TOTAL_HOLES = LEVELS.length;
 
@@ -39,8 +39,13 @@ function StartScreen({ onStart }: { onStart: (playerCount: number, shading: Shad
   const [musicOn, setMusicOn] = useState(false);
 
   const handleToggleMusic = () => {
-    const nowPlaying = toggleMusic();
-    setMusicOn(nowPlaying);
+    if (isMusicPlaying()) {
+      stopMusic();
+      setMusicOn(false);
+    } else {
+      startMusicForLevel(0); // menu preview uses level 1 track
+      setMusicOn(true);
+    }
   };
 
   return (
@@ -307,13 +312,25 @@ export default function App() {
   playersRef.current = players;
 
   const handleToggleMusic = useCallback(() => {
-    const nowPlaying = toggleMusic();
-    setMusicOn(nowPlaying);
+    if (isMusicPlaying()) {
+      stopMusic();
+      setMusicOn(false);
+    } else {
+      startMusicForLevel(currentHoleRef.current);
+      setMusicOn(true);
+    }
   }, []);
+
+  // Switch music track when hole changes (if music is on)
+  useEffect(() => {
+    if (gameState === 'playing' && isMusicPlaying()) {
+      startMusicForLevel(currentHole);
+    }
+  }, [currentHole, gameState]);
 
   // Stop music when returning to menu
   useEffect(() => {
-    if (gameState === 'menu' && musicOn) {
+    if (gameState === 'menu') {
       stopMusic();
       setMusicOn(false);
     }

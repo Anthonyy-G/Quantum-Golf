@@ -112,25 +112,33 @@ export const LEVELS: LevelData[] = [
     par: 6,
     teePosition: [-9, 0.3, 2],
     holePosition: [9, 0.3, -2],
+    // Two large overlapping S-shaped platforms that share a connection zone
+    // Platform 1: x=-11..3, z=-1..5  (tee is here at x=-9, z=2 ✓)
+    // Platform 2: x=-3..11, z=-5..1  (hole is here at x=9, z=-2 ✓)
+    // Overlap zone: x=-3..3, z=-1..1 (the S-bend passage)
     platforms: [
-      { position: [-5, 0, 1.5], size: [12, 0.4, 3] },
-      { position: [5, 0, -1.5], size: [12, 0.4, 3] },
-      { position: [0, 0, 0], size: [3, 0.4, 3] },
+      { position: [-4, 0, 2],  size: [14, 0.4, 6] },
+      { position: [4,  0, -2], size: [14, 0.4, 6] },
     ],
     walls: [
-      { position: [-5, 0.8, 3.2], size: [12, 1.2, 0.3] },
-      { position: [-5, 0.8, -0.3], size: [12, 1.2, 0.3] },
-      { position: [5, 0.8, 0.3], size: [12, 1.2, 0.3] },
-      { position: [5, 0.8, -3.2], size: [12, 1.2, 0.3] },
-      { position: [-11.2, 0.8, 1.5], size: [0.3, 1.2, 3.5] },
-      { position: [11.2, 0.8, -1.5], size: [0.3, 1.2, 3.5] },
+      // Platform 1 outer walls
+      { position: [-4, 1.0,  5.3],  size: [14, 1.8, 0.3] },   // top
+      { position: [-11.3, 1.0, 2],  size: [0.3, 1.8, 6.6] },  // left
+      // Platform 2 outer walls
+      { position: [4,  1.0, -5.3],  size: [14, 1.8, 0.3] },   // bottom
+      { position: [11.3, 1.0, -2],  size: [0.3, 1.8, 6.6] },  // right
+      // Inner guide walls: funnel ball through the S-bend
+      // Right side of platform-1 above the join (z 1..5 at x≈3.2)
+      { position: [3.2, 1.0, 3.1], size: [0.3, 1.8, 3.8] },
+      // Left side of platform-2 below the join (z -5..-1 at x≈-3.2)
+      { position: [-3.2, 1.0, -3.1], size: [0.3, 1.8, 3.8] },
     ],
     obstacles: [
-      { type: 'box', position: [-3, 0.55, 1.5], size: [0.8, 0.8, 2.5], color: '#bf00ff', pulseSpeed: 2.8, pulseAmp: 0.4 },
-      { type: 'box', position: [0, 0.55, 0], size: [2.5, 0.8, 0.8], color: '#ff6600', pulseSpeed: 2.0, pulseAmp: 0.3 },
-      { type: 'box', position: [3, 0.55, -1.5], size: [0.8, 0.8, 2.5], color: '#00f5ff', pulseSpeed: 3.2, pulseAmp: 0.35 },
-      { type: 'cylinder', position: [-7, 0.7, 1.5], size: [0.5, 1.0, 0.5], color: '#ff00aa', pulseSpeed: 1.5, pulseAmp: 0.25 },
-      { type: 'cylinder', position: [7, 0.7, -1.5], size: [0.5, 1.0, 0.5], color: '#39ff14', pulseSpeed: 1.5, pulseAmp: 0.25 },
+      { type: 'box',      position: [-6, 0.55, 2],    size: [0.8, 0.8, 4],   color: '#bf00ff', pulseSpeed: 2.8, pulseAmp: 0.4 },
+      { type: 'cylinder', position: [0,  0.7,  0],    size: [0.7, 1.1, 0.7], color: '#ff6600', pulseSpeed: 3.5, pulseAmp: 0.45 },
+      { type: 'box',      position: [6,  0.55, -2],   size: [0.8, 0.8, 4],   color: '#00f5ff', pulseSpeed: 3.2, pulseAmp: 0.35 },
+      { type: 'cylinder', position: [-3, 0.7,  3.5],  size: [0.5, 1.0, 0.5], color: '#ff00aa', pulseSpeed: 1.5, pulseAmp: 0.25 },
+      { type: 'cylinder', position: [3,  0.7, -3.5],  size: [0.5, 1.0, 0.5], color: '#39ff14', pulseSpeed: 1.5, pulseAmp: 0.25 },
     ],
     gravityDir: [0, -1, 0],
     physicsMode: 'bouncy',
