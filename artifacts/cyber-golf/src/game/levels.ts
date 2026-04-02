@@ -55,24 +55,26 @@ export const LEVELS: LevelData[] = [
     id: 3,
     name: "GRAVITY SHIFT",
     par: 5,
+    // Single large platform, same Y everywhere, hole at same height as surface
     teePosition: [-9, 0.3, 0],
-    holePosition: [9, -0.5, 1.5],
+    holePosition: [9, 0.3, 0],
     platforms: [
-      { position: [-4, 0, 0], size: [12, 0.4, 4] },
-      { position: [5, -0.3, 1.5], size: [10, 0.4, 4] },
+      { position: [0, 0, 0], size: [22, 0.4, 5] },
     ],
     walls: [
-      { position: [-4, 0.8, 2.2], size: [12, 1.2, 0.3] },
-      { position: [-4, 0.8, -2.2], size: [12, 1.2, 0.3] },
-      { position: [5, 0.5, 3.7], size: [10, 1.2, 0.3] },
-      { position: [5, 0.5, -0.7], size: [10, 1.2, 0.3] },
-      { position: [-10.2, 0.8, 0], size: [0.3, 1.2, 4.5] },
-      { position: [10.2, 0.5, 1.5], size: [0.3, 1.2, 4.5] },
+      // Outer boundary — taller walls to catch slow-falling balls in low gravity
+      { position: [0, 1.0, 2.7],  size: [22, 1.8, 0.3] },
+      { position: [0, 1.0, -2.7], size: [22, 1.8, 0.3] },
+      { position: [11.2, 1.0, 0], size: [0.3, 1.8, 5.5] },
+      { position: [-11.2, 1.0, 0], size: [0.3, 1.8, 5.5] },
+      // Interior dividers — two gaps force the ball to pick a lane
+      { position: [-5, 1.0, 1.1],  size: [0.3, 1.8, 3.2] },
+      { position: [2, 1.0, -1.1], size: [0.3, 1.8, 3.2] },
     ],
     obstacles: [
-      { type: 'box', position: [-1, 0.55, 0], size: [0.9, 0.8, 3], color: '#39ff14', pulseSpeed: 3.0, pulseAmp: 0.35 },
-      { type: 'cylinder', position: [3, 0.3, 1.5], size: [0.6, 0.8, 0.6], color: '#ff6600', pulseSpeed: 2.2, pulseAmp: 0.3 },
-      { type: 'box', position: [7, 0.25, 1.5], size: [0.7, 0.7, 2.5], color: '#bf00ff', pulseSpeed: 1.6, pulseAmp: 0.25 },
+      { type: 'box',      position: [-2, 0.55, 0],   size: [0.9, 0.8, 3],   color: '#39ff14', pulseSpeed: 3.0, pulseAmp: 0.35 },
+      { type: 'cylinder', position: [4, 0.7, -0.8],  size: [0.6, 1.0, 0.6], color: '#ff6600', pulseSpeed: 2.2, pulseAmp: 0.3 },
+      { type: 'box',      position: [7, 0.55, 0.8],  size: [0.7, 0.8, 2.5], color: '#bf00ff', pulseSpeed: 1.6, pulseAmp: 0.25 },
     ],
     gravityDir: [0, -1, 0],
     physicsMode: 'low-gravity',

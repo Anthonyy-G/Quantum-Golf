@@ -296,6 +296,16 @@ export default function App() {
   const [isAiming, setIsAiming] = useState(true);
   const [musicOn, setMusicOn] = useState(false);
 
+  // Refs to avoid stale closures in effects
+  const ballsRef = useRef(balls);
+  ballsRef.current = balls;
+  const activeBallIdxRef = useRef(activeBallIdx);
+  activeBallIdxRef.current = activeBallIdx;
+  const currentHoleRef = useRef(currentHole);
+  currentHoleRef.current = currentHole;
+  const playersRef = useRef(players);
+  playersRef.current = players;
+
   const handleToggleMusic = useCallback(() => {
     const nowPlaying = toggleMusic();
     setMusicOn(nowPlaying);
@@ -317,13 +327,16 @@ export default function App() {
     const ball = balls[activeBallIdx];
     if (!ball || ball.isMoving || ball.isInHole) return;
 
-    const speed = 8 + aimPower * 14;
+    const isLowGrav = level.physicsMode === 'low-gravity';
+    // Reduce upward kick for low-gravity so ball doesn't fly off into space
+    const speed = 7 + aimPower * 11;
+    const upward = isLowGrav ? 1.0 + aimPower * 1.5 : 2.2 + aimPower * 2.8;
     const dx = Math.cos(aimAngle) * speed;
     const dz = Math.sin(aimAngle) * speed;
 
     setBalls(prev => prev.map((b, i) =>
       i === activeBallIdx
-        ? { ...b, velocity: [dx, 2.5 + aimPower * 3, dz], isMoving: true }
+        ? { ...b, velocity: [dx, upward, dz], isMoving: true }
         : b
     ));
 
@@ -333,7 +346,7 @@ export default function App() {
       newStrokes[currentHole] += 1;
       return { ...p, strokes: newStrokes, totalStrokes: p.totalStrokes + 1 };
     }));
-  }, [balls, activeBallIdx, aimAngle, aimPower, currentHole]);
+  }, [balls, activeBallIdx, aimAngle, aimPower, currentHole, level]);
 
   // Keyboard controls
   useEffect(() => {
@@ -364,21 +377,27 @@ export default function App() {
     }));
   }, [currentHole]);
 
-  // Advance turn when all balls stopped
+  // Advance turn when all balls stopped — uses refs to avoid stale closure
   useEffect(() => {
     if (!allBallsStopped || gameState !== 'playing') return;
 
-    const activeBallsNotInHole = balls.filter(b => !b.isInHole);
+    const latestBalls = ballsRef.current;
+    const latestActiveBallIdx = activeBallIdxRef.current;
+    const latestCurrentHole = currentHoleRef.current;
+    const latestPlayers = playersRef.current;
+
+    const activeBallsNotInHole = latestBalls.filter(b => !b.isInHole);
     if (activeBallsNotInHole.length === 0) {
       // All in hole → next hole or end
       setTimeout(() => {
-        if (currentHole + 1 >= TOTAL_HOLES) {
+        const hole = currentHoleRef.current;
+        if (hole + 1 >= TOTAL_HOLES) {
           setGameState('scoreboard');
         } else {
-          const nextHole = currentHole + 1;
+          const nextHole = hole + 1;
           setCurrentHole(nextHole);
           setLevelRotation(0);
-          setBalls(initBalls(players, LEVELS[nextHole].teePosition));
+          setBalls(initBalls(playersRef.current, LEVELS[nextHole].teePosition));
           setPlayers(prev => prev.map(p => ({ ...p, ballInHole: false })));
           setActiveBallIdx(0);
         }
@@ -387,18 +406,18 @@ export default function App() {
     }
 
     // Find next player that still has a ball not in hole
-    let next = activeBallIdx;
-    for (let i = 1; i <= balls.length; i++) {
-      const idx = (activeBallIdx + i) % balls.length;
-      if (!balls[idx].isInHole) {
+    let next = latestActiveBallIdx;
+    for (let i = 1; i <= latestBalls.length; i++) {
+      const idx = (latestActiveBallIdx + i) % latestBalls.length;
+      if (!latestBalls[idx].isInHole) {
         next = idx;
         break;
       }
     }
-    if (next !== activeBallIdx) {
+    if (next !== latestActiveBallIdx) {
       setActiveBallIdx(next);
     }
-  }, [allBallsStopped]);
+  }, [allBallsStopped, gameState]);
 
   const rotateLevel = useCallback(() => {
     setLevelRotation(r => (r + 1) % 4);

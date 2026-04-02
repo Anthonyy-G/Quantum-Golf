@@ -127,6 +127,15 @@ export function stepBall(
         v = res.vel;
       }
     }
+
+    // Progressive damping when ball is slow to kill micro-bounces
+    const spd = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    if (spd < 0.8 && spd > 0) {
+      const damp = Math.max(0, 1 - 3.5 * subDt);
+      v[0] *= damp;
+      v[1] *= damp;
+      v[2] *= damp;
+    }
   }
 
   return { pos: p, vel: v };
@@ -145,7 +154,7 @@ export function isNearHole(
 
 export function isBallStopped(vel: [number, number, number]): boolean {
   const speed = Math.sqrt(vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]);
-  return speed < 0.04;
+  return speed < 0.12;
 }
 
 export function isBallFallen(pos: [number, number, number]): boolean {
