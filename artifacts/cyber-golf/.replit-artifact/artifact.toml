@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Cyber-Golf Multi-Dimension"
+version = "1.0.0"
+id = "artifacts/cyber-golf"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 26139
+
+[services.development]
+run = "pnpm --filter @workspace/cyber-golf run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cyber-golf", "run", "build" ]
+publicDir = "artifacts/cyber-golf/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26139"
+BASE_PATH = "/"
