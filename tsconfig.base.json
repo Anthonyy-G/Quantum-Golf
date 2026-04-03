@@ -4,19 +4,19 @@
     "lib": ["es2022"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "noEmitOnError": false,             // CAMBIADO A FALSE (Para que publique aunque haya errores)
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": false,
     "noImplicitReturns": true,
     "noUnusedLocals": false,
-    "noImplicitAny": false,              // CAMBIADO A FALSE (Arregla el error de req y res)
-    "noImplicitThis": false,             // CAMBIADO A FALSE (Menos estricto con 'this')
-    "strictNullChecks": false,           // CAMBIADO A FALSE (Evita errores de variables vacías)
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
     "strictFunctionTypes": false,
     "strictBindCallApply": true,
-    "strictPropertyInitialization": false, // CAMBIADO A FALSE (Para que no pida inicializar todo)
-    "useUnknownInCatchVariables": false,   // CAMBIADO A FALSE
-    "alwaysStrict": false,                 // CAMBIADO A FALSE
+    "strictPropertyInitialization": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
     "skipLibCheck": true,
     "target": "es2022",
     "types": [],
